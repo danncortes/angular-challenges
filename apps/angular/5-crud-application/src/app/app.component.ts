@@ -1,50 +1,48 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
-import { Component, OnInit } from '@angular/core';
-import { randText } from '@ngneat/falso';
+import { Component, inject, OnInit } from '@angular/core';
+import { MatProgressSpinner } from '@angular/material/progress-spinner';
+import { TodoComponent } from './todo.component';
+import { Todo, TodoStore } from './todo.store';
 
 @Component({
-  imports: [CommonModule],
+  imports: [CommonModule, MatProgressSpinner, TodoComponent],
+  providers: [],
   selector: 'app-root',
   template: `
-    <div *ngFor="let todo of todos">
-      {{ todo.title }}
-      <button (click)="update(todo)">Update</button>
-    </div>
+    @if (this.todoStore.isLoading()) {
+      <mat-spinner></mat-spinner>
+    } @else if (this.todoStore.error()) {
+      🔴 {{ this.todoStore.error() }}
+      <button (click)="fetchTodos()">Retry</button>
+    } @else {
+      <div *ngFor="let todo of this.todoStore.todos()">
+        <app-todo
+          [todo]="todo"
+          [error]="this.todoStore.statuses().get(todo.id)?.error"
+          [isLoading]="this.todoStore.statuses().get(todo.id)?.loading"
+          (update)="this.update($event)"
+          (delete)="this.delete($event)"></app-todo>
+      </div>
+    }
   `,
   styles: [],
 })
 export class AppComponent implements OnInit {
-  todos!: any[];
-
-  constructor(private http: HttpClient) {}
+  readonly todoStore = inject(TodoStore);
 
   ngOnInit(): void {
-    this.http
-      .get<any[]>('https://jsonplaceholder.typicode.com/todos')
-      .subscribe((todos) => {
-        this.todos = todos;
-      });
+    this.todoStore.fetch();
   }
 
-  update(todo: any) {
-    this.http
-      .put<any>(
-        `https://jsonplaceholder.typicode.com/todos/${todo.id}`,
-        JSON.stringify({
-          todo: todo.id,
-          title: randText(),
-          body: todo.body,
-          userId: todo.userId,
-        }),
-        {
-          headers: {
-            'Content-type': 'application/json; charset=UTF-8',
-          },
-        },
-      )
-      .subscribe((todoUpdated: any) => {
-        this.todos[todoUpdated.id - 1] = todoUpdated;
-      });
+  fetchTodos() {
+    this.todoStore.fetch();
+  }
+
+  update(todo: Todo) {
+    this.todoStore.update(todo);
+  }
+
+  delete(todo: Todo) {
+    this.todoStore.remove(todo);
   }
 }
